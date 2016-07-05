@@ -1,7 +1,8 @@
 (ns sample-meta.core
   (:import [java.security MessageDigest])
   (:require [clojure.java.jdbc :as j]
-            [clojure.java.io :as io]))
+            [clojure.java.io :as io]
+            [sample-meta.aubio :as dsp]))
 
 (def ^{:dynamic true} *default-hash* "SHA-256")
 
@@ -83,9 +84,19 @@
           (recur (drop batch-size samples)))))
     :DONE))
 
+(defn import-onsets []
+  (let [results (j/query mysql-db "select id,path from samples limit 10")
+
+        ]
+    (doseq [result results]
+      (println  (dsp/onsets (:path result))))
+    ;;(j/insert! :onsets [:id :onset_time] [(:id result) (dsp/onsets (:path result))])
+    ))
+
 
 (comment
   (j/execute! mysql-db "TRUNCATE samples;")
   (find-note "/Users/josephwilk/Workspace/music/samples/Abstract/One Shots/Tonal/C#_DryTone_SP.wav")
   (import-samples sample-root)
+  (import-onsets)
   )
