@@ -42,18 +42,6 @@
         "loop"
         "unknown"))))
 
-(defn find-sample-set [sample-root]
-  (map
-   (fn [file]
-     (let [p (.getPath file)
-           file-parts (clojure.string/split p #"/")
-           collection (let [collection (nth file-parts 6)]
-                        (if (clojure.string/includes? collection ".wav")
-                          "root"
-                          collection))]
-        [(sha256 p) collection (find-type p) (find-note p) p]))
-   (filter #(.endsWith (.getName %) ".wav") (file-seq (io/file sample-root)))))
-
 (defn find-note [sample]
   (let [file (last (clojure.string/split sample #"/"))
         match (re-find #"(?i)_A_|_A#_|_B_|_C_|_C#_|_D_|_D#_|_E_|_F_|_F#_|_G_|_G#_|^A_|^A_|^A#_|^B_|^C_|^C#_|^D_|^D#_|^E_|^F_|^F#_|^G_|^G#_" file)]
@@ -69,7 +57,17 @@
                      note))]
         note))))
 
-(str (first (char-array "asdasd")))
+(defn find-sample-set [sample-root]
+  (map
+   (fn [file]
+     (let [p (.getPath file)
+           file-parts (clojure.string/split p #"/")
+           collection (let [collection (nth file-parts 6)]
+                        (if (clojure.string/includes? collection ".wav")
+                          "root"
+                          collection))]
+        [(sha256 p) collection (find-type p) (find-note p) p]))
+   (filter #(.endsWith (.getName %) ".wav") (file-seq (io/file sample-root)))))
 
 (defn import-samples [path]
   (let [batch-size 1000
@@ -93,10 +91,23 @@
           (println onset)
           (j/insert! mysql-db :onsets [:sample_id :path :onset_time] [(:id result) (:path result) onset]))))))
 
+(defn import-notes []
+  (let [results (j/query mysql-db "select id,path from samples")]
+    (doseq [result results]
+      (let [note-data (dsp/notes (:path result))
+            notes (:notes note-data)
+            onset (:onset note-data)]
+        (doseq [note notes]
+          (j/insert! mysql-db :notes [:sample_id :path :onset :offset :midi :note] [(:id result) (:path result) (:onset  note) (:offset note) (:midi note) (:note note)]))))))
+
+
 (comment
   (j/execute! mysql-db "TRUNCATE samples;")
   (j/execute! mysql-db "TRUNCATE onsets;")
+  (j/execute! mysql-db "TRUNCATE notes;")
+
   (find-note "/Users/josephwilk/Workspace/music/samples/Abstract/One Shots/Tonal/C#_DryTone_SP.wav")
   (import-samples sample-root)
   (import-onsets)
+  (import-notes)
   )

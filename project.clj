@@ -5,4 +5,5 @@
             :url "http://www.eclipse.org/legal/epl-v10.html"}
   :dependencies [[org.clojure/clojure "1.8.0"]
                  [org.clojure/java.jdbc "0.6.1"]
-                 [mysql/mysql-connector-java "5.1.6"]])
+                 [mysql/mysql-connector-java "5.1.6"]
+                 [overtone "0.10.1"]])
