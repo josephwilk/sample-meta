@@ -85,17 +85,17 @@
     :DONE))
 
 (defn import-onsets []
-  (let [results (j/query mysql-db "select id,path from samples limit 10")
-
-        ]
+  (let [results (j/query mysql-db "select id,path from samples")]
     (doseq [result results]
-      (println  (dsp/onsets (:path result))))
-    ;;(j/insert! :onsets [:id :onset_time] [(:id result) (dsp/onsets (:path result))])
-    ))
-
+      (println  (dsp/onsets (:path result)))
+      (let [onsets (:onsets (dsp/onsets (:path result)))]
+        (doseq [onset onsets]
+          (println onset)
+          (j/insert! mysql-db :onsets [:sample_id :path :onset_time] [(:id result) (:path result) onset]))))))
 
 (comment
   (j/execute! mysql-db "TRUNCATE samples;")
+  (j/execute! mysql-db "TRUNCATE onsets;")
   (find-note "/Users/josephwilk/Workspace/music/samples/Abstract/One Shots/Tonal/C#_DryTone_SP.wav")
   (import-samples sample-root)
   (import-onsets)
