@@ -1,5 +1,5 @@
 (ns sample-meta.aubio
-  "Using https://aubio.org/"
+  "Using https://aubio.org/ or afinfo"
   (:require [clojure.java.shell :as shell]
             [overtone.music.pitch :as pitch]))
 
@@ -18,6 +18,44 @@
         {:onsets []})
       )))
 
+(defn info [sample]
+  (let [o (shell/sh "afinfo" sample)]
+    (if (= (:exit o) 0)
+      (let [out (->> (:out o)
+                     (re-find #"estimated duration: (\d+.\d+) sec")
+                     (last)
+                     (Double/parseDouble))]
+        {:length out})
+      {})))
+
+(defn track [sample]
+  (let [o (shell/sh "aubiotrack" sample)]
+    (if (= (:exit o) 0)
+      (let [out (->> (clojure.string/split (:out o) #"\n")
+                     (map (fn [string]
+                            (if (clojure.string/blank? string)
+                              0.0
+                              (Double/parseDouble string)))))]
+        {:beats out})
+      (do
+        (println (:err o))
+        {:beats []}))))
+
+
+(defn cuts [sample]
+  (let [o (shell/sh "aubiocut" sample)]
+    (if (= (:exit o) 0)
+      (let [out (->> (clojure.string/split (:out o) #"\n")
+                     (map (fn [string]
+                            (if (clojure.string/blank? string)
+                              0.0
+                              (Double/parseDouble string)))))]
+        {:beats out})
+      (do
+        (println (:err o))
+        {:beats []}))))
+
+
 (defn notes [sample]
   (let [o (shell/sh "aubionotes" sample)]
     (if (= (:exit o) 0)
@@ -28,15 +66,17 @@
                                     (map (fn [string] (Double/parseDouble string))))
                          data (partition 3 tails)
                          data (map (fn [[midi on off]]
-                                     (let [note-name (name (pitch/find-note-name (Math/round midi)))]
-                                       {:midi midi :onset on :offset off :note note-name})) data)]
+                                     (let [note-name (name (pitch/find-note-name (Math/round midi)))
+                                           octave (Integer/parseInt (str (last note-name)))
+                                           note-name (clojure.string/join (butlast note-name))]
+                                       {:midi midi :onset on :offset off :note note-name :octave octave})) data)]
                      data)
-                   [{:midi 0.0 :onset head :offset 0.0 :note ""}])]
+                   [{:midi 0.0 :onset head :offset 0.0}])]
         {:onset head
          :notes data})
       (do
         (println (:err o))
-        {:onset 0.0 :notes {:midi 0.0 :onset 0.0 :offset 0.0 :note ""}}))))
+        {:onset 0.0 :notes {:midi 0.0 :onset 0.0 :offset 0.0}}))))
 
 (comment
   (notes "/Users/josephwilk/Workspace/music/samples/Abstract/Loops/Melodic/Found Sound/120_C_Lamp_01_SP.wav")
@@ -44,5 +84,9 @@
 
   (onsets "/Users/josephwilk/Workspace/music/samples/Abstract/Loops/Mel")
 
+  (info "/Users/josephwilk/Workspace/music/samples/33ReverseFX_Wav_SP/Samples/ReverseTexture_02_SP.wav")
+
   (notes "/Users/josephwilk/Workspace/music/samples/33ReverseFX_Wav_SP/Samples/ReverseTexture_02_SP.wav")
+  (cuts "/Users/josephwilk/Workspace/music/samples/33ReverseFX_Wav_SP/Samples/ReverseTexture_02_SP.wav")
+  (track "/Users/josephwilk/Workspace/music/samples/33ReverseFX_Wav_SP/Samples/ReverseTexture_02_SP.wav")
   )
