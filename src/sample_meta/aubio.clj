@@ -68,7 +68,11 @@
                          data (map (fn [[midi on off]]
                                      (let [note-name (name (pitch/find-note-name (Math/round midi)))
                                            octave (Integer/parseInt (str (last note-name)))
-                                           note-name (clojure.string/join (butlast note-name))]
+                                           note-name (-> note-name
+                                                         butlast
+                                                         clojure.string/join
+                                                         clojure.string/upper-case
+                                                         (clojure.string/replace #"AB" "G#"))]
                                        {:midi midi :onset on :offset off :note note-name :octave octave})) data)]
                      data)
                    [{:midi 0.0 :onset head :offset 0.0}])]

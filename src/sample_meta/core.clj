@@ -2,6 +2,7 @@
   (:import [java.security MessageDigest])
   (:require [clojure.java.jdbc :as j]
             [clojure.java.io :as io]
+
             [sample-meta.aubio :as dsp]))
 
 (def ^{:dynamic true} *default-hash* "SHA-256")
@@ -32,13 +33,13 @@
 
 (def sample-root "/Users/josephwilk/Workspace/music/samples/")
 
-(defn find-drum-type [sample-path parts]
-  (let [snare (re-find #"snare" sample-path)
-        hat (re-find #"hat" sample-path)
-        kick (re-find #"kick" sample-path)
-        perc (re-find #"perc" sample-path)
-        claps (re-find #"claps" sample-path)]
-    ;;Clojure where is your pattern matching :(
+(defn find-drum [part parts]
+  (let [file (last parts)
+        snare (re-find #"(?i)snare" file)
+        hat (re-find #"(?i)hat" file)
+        kick (re-find #"(?i)kick" file)
+        perc (re-find #"(?i)perc" file)
+        claps (re-find #"(?i)claps" file)]
     (if snare
       "snare_hit"
       (if hat
@@ -47,27 +48,30 @@
           "kick_hit"
           (if perc
             "perc_hit"
-            (if claps
-              "clap_hit"
-              "drum_hit")))))))
+            (when claps
+              "clap_hit")))))))
+
+
+(defn find-drum-type [sample-path parts] (find-drum sample-path parts))
+(defn find-unknown [path parts]          (find-drum path parts))
+(defn find-oneshot [path parts]          (find-drum path parts))
 
 (defn find-type [sample-path]
   (let [parts (clojure.string/split sample-path #"/")
-        path (clojure.string/join "/" (butlast parts))
-        ]
+        path (clojure.string/join "/" (butlast parts))]
     (if (re-find #"(?i)one-shot|one_shot|oneshot|one shot" sample-path)
-      "one_shot"
+      ["one_shot" (find-oneshot path parts)]
       (if (re-find #"(?i)loop|loops" path)
-        "loop"
+        ["loop"]
         (if (re-find #"(?i)drum hits|drum_hits" path)
-          (find-drum-type path parts)
-          "unknown")))))
+          ["drum_hit" (find-drum-type path parts)]
+          ["unknown" (find-unknown path parts)])))))
 
 (defn find-note [sample]
   (let [file (last (clojure.string/split sample #"/"))
         file  (first (clojure.string/split file #"\..+$"))
 
-        ;;Avert your gaze. Imagine this was a wonderful parsers which extracted notes.
+        ;;Avert your gaze. Imagine this was a wonderful parser which extracted notes.
         octave-match (re-find #"(?i)0_A_|_A(?:#|s)_|_B_|_C_|_C(?:#|s)_|_D_|_D_|_E_|_F_|_F(?:#|s)_|_G_|_G(?:#|s)_|^A_|^A_|^A(?:#|s)_|^B_|^C_|^C(?:#|s)_|^D_|^D(?:#|s)_|^E_|^F_|^F(?:#|s)_|^G_|^G(?:#|s)_|_A$|_A(?:#|s)$|_B$|_C$|_C(?:#|s)$|_D$|_D(?:#|s)$|_E$|_F$|_F(?:#|s)$|_G$|_G(?:#|s)$|_A\d+_|_A(?:#|s)\d+_|_A(?:#|s)\d+_|_B\d+_|_C\d+_|_C(?:#|s)\d+_|_D\d+_|_D(?:#|s)\d+_|_E\d+_|_F\d+_|_F(?:#|s)\d+_|_G\d+_|_G(?:#|s)\d+_|^A\d+_|^A\d+_|^A(?:#|s)\d+_|^B\d+_|^C\d+_|^C(?:#|s)\d+_|^D\d+_|^D(?:#|s)\d+_|^E\d+_|^F\d+_|^F(?:#|s)\d+_|^G\d+_|^G(?:#|s)\d+_|_A\d+$|_A(?:#|s)\d+$|_B\d+$|_C\d+$|_C(?:#|s)\d+$|_D\d+$|_D(?:#|s)\d+$|_E\d+$|_F\d+$|_F(?:#|s)\d+$|_G\d+$|_G(?:#|s)\d+$" file)
         note-match octave-match]
     (when note-match
@@ -124,8 +128,12 @@
            {note :note octave :octave} (find-note p)
            filename (find-filename p)
            bpm (find-bpm p)
-           length (find-length p)]
-       [(sha256 p) p collection filename length (find-type p) note octave bpm]))
+           length (find-length p)
+
+           types (find-type p)
+           main-type (first types)
+           sub-type (or (second types) main-type)]
+       [(sha256 p) p collection filename length main-type sub-type note octave bpm]))
    (filter #(.endsWith (.getName %) ".wav") (file-seq (io/file sample-root)))))
 
 (defn abs [x]
@@ -136,7 +144,7 @@
   ([path]
       (let [batch-size 1000
             samples (find-sample-set path)
-            insert-fn (fn [s] (j/insert-multi! mysql-db :samples ["guid"  "path" "collection" "filename" "length" "type" "note" "octave" "bpm"] s))]
+            insert-fn (fn [s] (j/insert-multi! mysql-db :samples ["guid"  "path" "collection" "filename" "length" "type" "subtype" "note" "octave" "bpm"] s))]
         (println (str "total samples: " (count samples)))
         (loop [samples samples]
           (print ".")
@@ -167,9 +175,11 @@
               notes (:notes note-data)
               onset (:onset note-data)
               collection (find-collection (:path result))
-              filename (find-filename (:path result))]
+              filename (find-filename (:path result))
+              length (abs (- (:offset note) (:onset note)))
+              perc (if (< length 0.05) 1 0)]
           (doseq [note notes]
-            (j/insert! mysql-db :notes [:sample_id :path :collection :filename :onset :offset :length :midi :note :octave] [(:id result) (:path result) collection filename (:onset  note) (:offset note) (abs (- (:offset note) (:onset note))) (:midi note) (:note note)  (:octave note)]))))
+            (j/insert! mysql-db :notes [:sample_id :path :collection :filename :onset :offset :length :midi :note :octave :perc] [(:id result) (:path result) collection filename (:onset  note) (:offset note) length (:midi note) (:note note)  (:octave note) perc]))))
       results))))
 
 (defn import-cuts []
@@ -216,7 +226,10 @@
 
   (find-filename "/Users/josephwilk/Workspace/music/samples/Abstract/One Shots/Tonal/C#_DryTone_SP")
 
-  (import-samples)
+  (do
+    (import-samples)
+    (import-notes)
+    )
 
   (do
 ;;    (future (import-onsets))
