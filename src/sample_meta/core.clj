@@ -3,7 +3,8 @@
   (:require [clojure.java.jdbc :as j]
             [clojure.java.io :as io]
 
-            [sample-meta.aubio :as dsp]))
+            [sample-meta.aubio :as dsp]
+            [sample-meta.sox   :as dsp-stats]))
 
 (def ^{:dynamic true} *default-hash* "SHA-256")
 
@@ -132,8 +133,12 @@
 
            types (find-type p)
            main-type (first types)
-           sub-type (or (second types) main-type)]
-       [(sha256 p) p collection filename length main-type sub-type note octave bpm]))
+           sub-type (or (second types) main-type)
+
+           stats (dsp-stats p)]
+       [(sha256 p) p collection filename length main-type sub-type note octave bpm
+        (get stats "Mean amplitude" 0.0)
+        (get stats "Maximum amplitude" 0.0)]))
    (filter #(.endsWith (.getName %) ".wav") (file-seq (io/file sample-root)))))
 
 (defn abs [x]
@@ -145,7 +150,12 @@
      (println (str {:importing-from path}))
       (let [batch-size 1000
             samples (find-sample-set path)
-            insert-fn (fn [s] (j/insert-multi! mysql-db :samples ["guid"  "path" "collection" "filename" "length" "type" "subtype" "note" "octave" "bpm"] s))]
+            insert-fn
+            (fn [s]
+              (j/insert-multi!
+               mysql-db :samples
+               ["guid"  "path" "collection" "filename" "length" "type" "subtype" "note" "octave" "bpm"
+                "mean_amplitude" "max_amplitude"] s))]
         (println (str "total samples: " (count samples)))
         (loop [samples samples]
           (print ".")
