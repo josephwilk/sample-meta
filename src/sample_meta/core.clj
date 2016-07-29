@@ -142,6 +142,7 @@
 (defn import-samples
   ([] (import-samples sample-root))
   ([path]
+     (println (str {:importing-from path}))
       (let [batch-size 1000
             samples (find-sample-set path)
             insert-fn (fn [s] (j/insert-multi! mysql-db :samples ["guid"  "path" "collection" "filename" "length" "type" "subtype" "note" "octave" "bpm"] s))]
@@ -166,21 +167,27 @@
             (j/insert! mysql-db :onsets [:sample_id :path :collection :filename :onset_time] [(:id result) (:path result) collection filename onset]))))
       results))))
 
-(defn import-notes []
-  (let [results (j/query mysql-db "select id,path from samples")]
-    (doall
-     (pmap
-      (fn [result]
-        (let [note-data (dsp/notes (:path result))
-              notes (:notes note-data)
-              onset (:onset note-data)
-              collection (find-collection (:path result))
-              filename (find-filename (:path result))
-              length (abs (- (:offset note) (:onset note)))
-              perc (if (< length 0.05) 1 0)]
-          (doseq [note notes]
-            (j/insert! mysql-db :notes [:sample_id :path :collection :filename :onset :offset :length :midi :note :octave :perc] [(:id result) (:path result) collection filename (:onset  note) (:offset note) length (:midi note) (:note note)  (:octave note) perc]))))
-      results))))
+(defn import-notes
+  ([] (import-notes 0.3 256))
+  ([onset-threshold hop-size]
+     (let [results (j/query mysql-db "select id,path from samples")]
+       (doall
+        (pmap
+         (fn [result]
+           (let [note-data (dsp/notes (:path result) onset-threshold hop-size)
+                 notes (:notes note-data)
+                 onset (:onset note-data)
+                 collection (find-collection (:path result))
+                 filename (find-filename (:path result))
+                 table (if (or (< onset-threshold 0.3)
+                               (< hop-size 256))
+                         :notes_fine
+                         :notes)]
+             (doseq [note notes]
+               (let [length (abs (- (:offset note) (:onset note)))
+                     perc (if (< length 0.05) 1 0)]
+                 (j/insert! mysql-db table [:sample_id :path :collection :filename :onset :offset :length :midi :note :octave :perc] [(:id result) (:path result) collection filename (:onset  note) (:offset note) length (:midi note) (:note note)  (:octave note) perc])))))
+         results)))))
 
 (defn import-cuts []
   (let [results (j/query mysql-db "select id,path from samples")]
@@ -215,6 +222,7 @@
   (j/execute! mysql-db "TRUNCATE samples;")
   (j/execute! mysql-db "TRUNCATE onsets;")
   (j/execute! mysql-db "TRUNCATE notes;")
+  (j/execute! mysql-db "TRUNCATE notes_fine;")
   (j/execute! mysql-db "TRUNCATE cuts;")
   (j/execute! mysql-db "TRUNCATE track;")
 
@@ -228,14 +236,14 @@
 
   (do
     (import-samples)
-    (import-notes)
+    (import-notes 0.1 64)
     )
 
   (do
-;;    (future (import-onsets))
-    (def n (future (import-notes)))
-    (def c (future (import-cuts)))
-    (def t (future (import-track)))
-    (def o (future (import-onsets)))
+    (import-onsets)
+    ;;(def n (future (import-notes)))
+    (import-cuts)
+    (import-track)
+    (import-onsets)
     )
   )

@@ -56,35 +56,50 @@
         {:beats []}))))
 
 
-(defn notes [sample]
-  (let [o (shell/sh "aubionotes" sample)]
-    (if (= (:exit o) 0)
-      (let [[head & [tail]] (clojure.string/split (:out o) #"\n")
-            head (Double/parseDouble head)
-            data (if (seq tail)
-                   (let [tails (->> (clojure.string/split tail #"\t")
-                                    (map (fn [string] (Double/parseDouble string))))
-                         data (partition 3 tails)
-                         data (map (fn [[midi on off]]
-                                     (let [note-name (name (pitch/find-note-name (Math/round midi)))
-                                           octave (Integer/parseInt (str (last note-name)))
-                                           note-name (-> note-name
-                                                         butlast
-                                                         clojure.string/join
-                                                         clojure.string/upper-case
-                                                         (clojure.string/replace #"AB" "G#"))]
-                                       {:midi midi :onset on :offset off :note note-name :octave octave})) data)]
-                     data)
-                   [{:midi 0.0 :onset head :offset 0.0}])]
-        {:onset head
-         :notes data})
-      (do
-        (println (:err o))
-        {:onset 0.0 :notes {:midi 0.0 :onset 0.0 :offset 0.0}}))))
+(defn notes
+  ([sample] (notes sample 0.3))
+  ([sample res] (notes sample res 256))
+  ([sample resolution hop-size]
+     (let [o (shell/sh "aubionotes"
+                       (str "-t " resolution)
+                       (str "-H" hop-size)
+                       sample)]
+        (if (= (:exit o) 0)
+          (let [[head & [tail]] (clojure.string/split (:out o) #"\n")
+                head (Double/parseDouble head)
+                data (if (seq tail)
+                       (let [tails (->> (clojure.string/split tail #"\t")
+                                        (map (fn [string] (Double/parseDouble string))))
+                             data (partition 3 tails)
+                             data (map (fn [[midi on off]]
+                                         (let [note-name (name (pitch/find-note-name (Math/round midi)))
+                                               octave (Integer/parseInt (str (last note-name)))
+                                               note-name (-> note-name
+                                                             butlast
+                                                             clojure.string/join
+                                                             clojure.string/upper-case
+                                                             (clojure.string/replace #"AB" "G#")
+                                                             (clojure.string/replace #"EB" "D#")
+                                                             (clojure.string/replace #"BB" "A#")
+                                                             )]
+                                           {:midi midi :onset on :offset off :note note-name :octave octave}))
+                                       data)]
+                         data)
+                       [{:midi 0.0 :onset head :offset 0.0}])]
+            {:onset head
+             :notes data
+             :threshold resolution})
+          (do
+            (println (:err o))
+            {:onset 0.0 :notes {:midi 0.0 :onset 0.0 :offset 0.0}
+             :threshold resolution})))))
 
 (comment
-  (notes "/Users/josephwilk/Workspace/music/samples/Abstract/Loops/Melodic/Found Sound/120_C_Lamp_01_SP.wav")
+  (notes "/Users/josephwilk/Workspace/music/samples/Abstract/Loops/Melodic/Found Sound/120_C_Lamp_01_SP.wav" 0.3 64)
   (onsets "/Users/josephwilk/Workspace/music/samples/Abstract/Loops/Melodic/Found Sound/120_C_Lamp_01_SP.wav")
+
+
+  (shell/sh "aubionotes" (str "-t " 0.1) "/Users/josephwilk/Workspace/music/samples/Abstract/Loops/Melodic/Found Sound/120_C_Lamp_01_SP.wav")
 
   (onsets "/Users/josephwilk/Workspace/music/samples/Abstract/Loops/Mel")
 
