@@ -135,10 +135,12 @@
            main-type (first types)
            sub-type (or (second types) main-type)
 
-           stats (dsp-stats p)]
+           stats (dsp-stats/stats p)]
+       (println stats)
        [(sha256 p) p collection filename length main-type sub-type note octave bpm
         (get stats "Mean amplitude" 0.0)
-        (get stats "Maximum amplitude" 0.0)]))
+        (get stats "Maximum amplitude" 0.0)
+        (get stats "Minimum amplitude" 0.0)]))
    (filter #(.endsWith (.getName %) ".wav") (file-seq (io/file sample-root)))))
 
 (defn abs [x]
@@ -155,7 +157,7 @@
               (j/insert-multi!
                mysql-db :samples
                ["guid"  "path" "collection" "filename" "length" "type" "subtype" "note" "octave" "bpm"
-                "mean_amplitude" "max_amplitude"] s))]
+                "mean_amplitude" "max_amplitude" "min_amplitude"] s))]
         (println (str "total samples: " (count samples)))
         (loop [samples samples]
           (print ".")
