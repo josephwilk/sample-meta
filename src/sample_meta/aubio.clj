@@ -1,7 +1,71 @@
 (ns sample-meta.aubio
   "Using https://aubio.org/ or afinfo"
   (:require [clojure.java.shell :as shell]
-            [overtone.music.pitch :as pitch]))
+            [overtone.music.pitch :as pitch]
+
+            [clojure.data :as data]))
+
+(defn note-without-flat [note]
+  (-> note
+      pitch/find-note-name
+      name
+      (clojure.string/replace "Ab" "G#")
+      (clojure.string/replace "Eb" "D#")
+      (clojure.string/replace "Bb" "A#")))
+
+(defn find-note [freq]
+  (let [note (pitch/hz->midi (Double/parseDouble freq))]
+    (note-without-flat note)))
+
+(defn scale-notes [root scale]
+  (->>
+   (take 7 (drop 7 (pitch/scale-field root scale)))
+   (map note-without-flat)
+   (map (fn [note] (clojure.string/join (butlast (name note))))))
+  )
+
+(def all-scales
+  (map (fn [[note scale]] {:scale scale :root note :notes (vec (scale-notes note scale))})
+       (mapcat (fn [n]
+                 (map (fn [s] [n s])
+                      ;;(keys pitch/SCALE)
+                      [:major :minor]
+                      ))
+               [:C :C# :D :D# :E :F :F# :G :G# :A :A# :B] )))
+
+(defn find-scale [notes]
+  (let [scales-scored
+        (reverse
+         (sort-by
+          :matches
+          (filter
+           (fn [scale] (= (:matches scale) 7)) ;;Only select perfect matches
+           (map
+            (fn [{scale-notes :notes root :root scale :scale}
+                ]
+              (let [matches (clojure.set/intersection (set scale-notes) (set notes))
+                    differences (clojure.set/difference (set notes) (set scale-notes))]
+                ;; (println root scale matches (count (vec matches)))
+                {:root (name root) :scale (name scale) :matches (count (vec matches)) :diffs (count (vec differences))}
+                ))
+            all-scales))))
+
+        top-score (get (first scales-scored) :matches)
+        top-matching-candidates (take-while (fn [s] (= top-score (:matches s))) scales-scored)
+
+        lowest-diff (get (first scales-scored) :diffs)
+
+        top-candidates (sort-by :diffs top-matching-candidates)
+        top-candidates (take-while (fn [s] (= lowest-diff (:diffs s))) top-candidates)]
+
+    top-candidates))
+
+(comment
+  (first all-scales)
+  (data/diff ["F" "F#" "A#" "C" "C#" "F" "F#"] ["A" "B" "C" "D" "E" "F" "G"])
+  (find-scale ["A#" "B" "D#" "C" "D"])
+  )
+
 
 (defn onsets [sample]
   (let [o (shell/sh "aubioonset" sample)]
@@ -55,6 +119,39 @@
         (println (:err o))
         {:beats []}))))
 
+(defn find-pitch
+  ([sample] (detect-pitch sample -90.0))
+  ([sample silence-threshold]
+      (let [o (shell/sh "aubiopitch" sample "-p" "yin" "-s" (str silence-threshold))]
+        (if (= (:exit o) 0)
+          (let [out (->> (clojure.string/split (:out o) #"\n")
+                         (map #(clojure.string/split %1 #"\s"))
+                         (map (fn [[t s]]
+                                (try
+                                  (clojure.string/join
+                                   (butlast
+                                    (find-note s)))
+                                  (catch Exception e
+                                    ;;                    (println e)
+                                    nil
+                                    )
+                                  )))
+                         (reduce (fn [frequencies note]
+                                   (if note
+                                     (assoc frequencies note (inc (get frequencies note 0)))
+                                     frequencies)) {})
+                         (sort-by val)
+                         reverse
+                         (filter (fn [[note score]]
+                                   (> score 5))) ;;remove weaker notes
+                         (map first)
+                         )]
+
+            ;;(println (find-scale (map first out)))
+            {:notes out :scale (find-scale (map first out))})
+          (do
+            (println (:err o))
+            {:notes []})))))
 
 (defn notes
   ([sample] (notes sample 0.3))
@@ -98,6 +195,7 @@
   (notes "/Users/josephwilk/Workspace/music/samples/Abstract/Loops/Melodic/Found Sound/120_C_Lamp_01_SP.wav" 0.3 64)
   (onsets "/Users/josephwilk/Workspace/music/samples/Abstract/Loops/Melodic/Found Sound/120_C_Lamp_01_SP.wav")
 
+  (find-pitch "/Users/josephwilk/Workspace/music/samples/Abstract/Loops/Melodic/Found Sound/120_C_Lamp_01_SP.wav" -80.0)
 
   (shell/sh "aubionotes" (str "-t " 0.1) "/Users/josephwilk/Workspace/music/samples/Abstract/Loops/Melodic/Found Sound/120_C_Lamp_01_SP.wav")
 

@@ -2,6 +2,10 @@
   (:require [clojure.java.shell :as shell]
             [overtone.music.pitch :as pitch]))
 
+(defn truncate
+  [s n]
+    (subs s 0 (min (count s) n)))
+
 (defn stats [sample]
   (let [o (shell/sh "sox" sample "-n" "stat" "-rms")]
     (if (= (:exit o) 0)
@@ -13,15 +17,24 @@
                           (let [s (clojure.string/replace s #"\s+" " ")
                                 data (->> (clojure.string/split s #":")
                                           (map clojure.string/trim))
-                                _ (println data)
-                                num (try (Double/parseDouble (last data))
-                                         (catch Exception e
-                                           (println e)
-                                           0.0))]
+                                string-float (last data)
+                                num (when (and
+                                           (not (clojure.string/blank? string-float))
+                                           (not= string-float "Can't guess the type"))
+                                      (try (Double/parseDouble string-float)
+                                           (catch Exception e
+                                             (println e)
+                                             nil)))]
                             (assoc acc (first data) num)))
                         {}
                         out)
-            out (assoc out "Rough note" (pitch/find-note-name (pitch/hz->midi (get out "Rough frequency"))))]
+            out (assoc out "Rough note" (try
+                                          (truncate
+                                           (name (pitch/find-note-name (pitch/hz->midi (get out "Rough frequency"))))
+                                           8)
+                                          (catch Exception e
+                                            nil)
+                                          ))]
 
         out)
       (do

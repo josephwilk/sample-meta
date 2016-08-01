@@ -135,37 +135,89 @@
            main-type (first types)
            sub-type (or (second types) main-type)
 
-           stats (dsp-stats/stats p)]
-       (println stats)
+           stats (dsp-stats/stats p)
+
+           pitch-stats (dsp/detect-pitch p "-80.0")
+           notes (:notes pitch-stats)
+
+           note-1 (nth notes 0 nil)
+           note-2 (nth notes 1 nil)
+           note-3 (nth notes 2 nil)]
        [(sha256 p) p collection filename length main-type sub-type note octave bpm
-        (get stats "Mean amplitude" 0.0)
-        (get stats "Maximum amplitude" 0.0)
-        (get stats "Minimum amplitude" 0.0)]))
+
+        (get stats "Rough note")
+
+        note-1 note-2 note-3
+
+        (get stats "Mean amplitude")
+        (get stats "Maximum amplitude")
+        (get stats "Minimum amplitude")
+
+        (get stats "RMS amplitude")
+        (get stats "Volume adjustment")
+        (get stats "RMS delta")
+
+        ]))
    (filter #(.endsWith (.getName %) ".wav") (file-seq (io/file sample-root)))))
 
 (defn abs [x]
   (if (> x 0) x (* -1 x)))
 
+
 (defn import-samples
   ([] (import-samples sample-root))
   ([path]
      (println (str {:importing-from path}))
-      (let [batch-size 1000
-            samples (find-sample-set path)
-            insert-fn
-            (fn [s]
-              (j/insert-multi!
-               mysql-db :samples
-               ["guid"  "path" "collection" "filename" "length" "type" "subtype" "note" "octave" "bpm"
-                "mean_amplitude" "max_amplitude" "min_amplitude"] s))]
-        (println (str "total samples: " (count samples)))
-        (loop [samples samples]
-          (print ".")
-          (let [s (take batch-size samples)]
-            (when (seq s)
-              (insert-fn s)
-              (recur (drop batch-size samples)))))
-        :DONE)))
+     (let [batch-size 1000
+           samples (find-sample-set path)
+           insert-fn
+           (fn [s]
+             (j/insert-multi!
+              mysql-db :samples
+              ["guid"  "path" "collection" "filename" "length" "type" "subtype" "note" "octave" "bpm"
+               "rough_note"
+
+               "note1"
+               "note2"
+               "note3"
+
+               "mean_amplitude" "max_amplitude" "min_amplitude"
+               "rms_amplitude"
+               "volume_adjustment"
+               "rms_delta"] s))]
+       (println (str "total samples: " (count samples)))
+       (loop [samples samples]
+         (print ".")
+         (let [s (take batch-size samples)]
+           (when (seq s)
+             (insert-fn s)
+             (recur (drop batch-size samples)))))
+               :DONE)))
+
+
+(defn import-samples-with-scales []
+  (let [results (j/query mysql-db "select id,path from samples")]
+    (doall
+     (pmap
+      (fn [result]
+        (let [sample (:path result)
+
+              stats (dsp/detect-pitch sample "-80.0")
+
+              scales (:scale stats)
+              notes (:notes stats)
+
+              note-1 (nth stats 0)
+              note-2 (nth stats 1)
+              note-3 (nth stats 2)
+
+              collection (find-collection sample)
+              filename (find-filename sample)]
+          (doseq [scale scales]
+            (j/insert! mysql-db :samples_scales [:sample_id :path :collection :filename :scale :root :note1 :note2 :note3]
+                       [(:id result) (:path result) collection filename (:scale scale) (:root scale) scale note-1 note-2 note-3]))))
+      results))))
+
 
 (defn import-onsets []
   (let [results (j/query mysql-db "select id,path from samples")]
@@ -228,8 +280,6 @@
                  beats)))
       results))))
 
-
-
 (comment
   (j/execute! mysql-db "TRUNCATE samples;")
   (j/execute! mysql-db "TRUNCATE onsets;")
@@ -249,6 +299,8 @@
   (do
     (import-samples)
     (import-notes 0.1 64)
+
+    (import-samples-with-scales)
     )
 
   (do
