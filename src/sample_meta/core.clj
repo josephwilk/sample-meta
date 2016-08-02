@@ -137,17 +137,19 @@
 
            stats (dsp-stats/stats p)
 
-           pitch-stats (dsp/detect-pitch p "-80.0")
+           pitch-stats (dsp/find-pitch p -80.0)
            notes (:notes pitch-stats)
 
            note-1 (nth notes 0 nil)
            note-2 (nth notes 1 nil)
-           note-3 (nth notes 2 nil)]
+           note-3 (nth notes 2 nil)
+           note-4 (nth notes 3 nil)]
+       (println notes)
        [(sha256 p) p collection filename length main-type sub-type note octave bpm
 
         (get stats "Rough note")
 
-        note-1 note-2 note-3
+        note-1 note-2 note-3 note-4
 
         (get stats "Mean amplitude")
         (get stats "Maximum amplitude")
@@ -156,19 +158,17 @@
         (get stats "RMS amplitude")
         (get stats "Volume adjustment")
         (get stats "RMS delta")
-
         ]))
    (filter #(.endsWith (.getName %) ".wav") (file-seq (io/file sample-root)))))
 
 (defn abs [x]
   (if (> x 0) x (* -1 x)))
 
-
 (defn import-samples
   ([] (import-samples sample-root))
   ([path]
      (println (str {:importing-from path}))
-     (let [batch-size 1000
+     (let [batch-size 10
            samples (find-sample-set path)
            insert-fn
            (fn [s]
@@ -180,17 +180,19 @@
                "note1"
                "note2"
                "note3"
+               "note4"
 
                "mean_amplitude" "max_amplitude" "min_amplitude"
                "rms_amplitude"
                "volume_adjustment"
                "rms_delta"] s))]
-       (println (str "total samples: " (count samples)))
+       ;;(println (str "total samples: " (count samples)))
        (loop [samples samples]
-         (print ".")
+         (flush)
          (let [s (take batch-size samples)]
            (when (seq s)
              (insert-fn s)
+             (print ".")
              (recur (drop batch-size samples)))))
                :DONE)))
 
@@ -202,20 +204,21 @@
       (fn [result]
         (let [sample (:path result)
 
-              stats (dsp/detect-pitch sample "-80.0")
+              stats (dsp/find-pitch sample "-80.0")
 
               scales (:scale stats)
               notes (:notes stats)
 
-              note-1 (nth stats 0)
-              note-2 (nth stats 1)
-              note-3 (nth stats 2)
+              note-1 (nth notes 0)
+              note-2 (nth notes 1)
+              note-3 (nth notes 2)
+              note-4 (nth notes 3)
 
               collection (find-collection sample)
               filename (find-filename sample)]
           (doseq [scale scales]
-            (j/insert! mysql-db :samples_scales [:sample_id :path :collection :filename :scale :root :note1 :note2 :note3]
-                       [(:id result) (:path result) collection filename (:scale scale) (:root scale) scale note-1 note-2 note-3]))))
+            (j/insert! mysql-db :samples_scales [:sample_id :path :collection :filename :scale :root :note1 :note2 :note3 :note4 ]
+                       [(:id result) (:path result) collection filename (:scale scale) (:root scale) scale note-1 note-2 note-3 note-4]))))
       results))))
 
 

@@ -20,7 +20,9 @@
                                 string-float (last data)
                                 num (when (and
                                            (not (clojure.string/blank? string-float))
-                                           (not= string-float "Can't guess the type"))
+                                           (not= string-float "Can't guess the type")
+                                           (not= string-float "wave header missing extended part of fmt chunk")
+                                           (not= string-float "-t raw -e mu-law -b 8")) ;;TODO regex check
                                       (try (Double/parseDouble string-float)
                                            (catch Exception e
                                              (println e)
