@@ -200,15 +200,16 @@
 
 (defn import-samples-with-scales []
   (let [results (j/query mysql-db "select id,path from samples")]
+    (println (count results))
     (doall
      (pmap
       (fn [result]
         (let [sample (:path result)
 
-              stats (dsp/find-pitch sample "-80.0")
+              stats (dsp/find-pitch sample -80.0)
 
               scales (:scale stats)
-              notes (:notes stats)
+              notes  (:notes stats)
 
               note-1 (nth notes 0)
               note-2 (nth notes 1)
@@ -218,8 +219,10 @@
               collection (find-collection sample)
               filename (find-filename sample)]
           (doseq [scale scales]
-            (j/insert! mysql-db :samples_scales [:sample_id :path :collection :filename :scale :root :note1 :note2 :note3 :note4 ]
-                       [(:id result) (:path result) collection filename (:scale scale) (:root scale) scale note-1 note-2 note-3 note-4]))))
+            (j/insert! mysql-db
+                       :samples_scales
+                       [:sample_id :path :collection :filename :scale :root :note1 :note2 :note3 :note4]
+                       [(:id result) (:path result) collection filename (:scale scale) (:root scale) note-1 note-2 note-3 note-4]))))
       results))))
 
 
@@ -285,7 +288,9 @@
       results))))
 
 (comment
-  (j/execute! mysql-db "TRUNCATE samples;")
+;;  (j/execute! mysql-db "TRUNCATE samples;")
+  (j/execute! mysql-db "TRUNCATE samples_scales;")
+
   (j/execute! mysql-db "TRUNCATE onsets;")
   (j/execute! mysql-db "TRUNCATE notes;")
   (j/execute! mysql-db "TRUNCATE notes_fine;")

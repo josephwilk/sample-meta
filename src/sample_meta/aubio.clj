@@ -149,11 +149,11 @@
                          vec)]
 
             ;;(println (find-scale (map first out)))
-            {:notes out ;;:scale (find-scale (map first out))
+            {:notes out :scale (find-scale out)
              })
           (do
             (println (:err o))
-            {:notes []})))))
+            {:notes [] :scale {}})))))
 
 (defn notes
   ([sample] (notes sample 0.3))
