@@ -122,7 +122,7 @@
 (defn find-pitch
   ([sample] (find-pitch sample -90.0))
   ([sample silence-threshold]
-     (let [o (shell/sh "aubiopitch" sample "-s" (str silence-threshold))
+     (let [o (shell/sh "aubiopitch" sample "-p" "yin" "-s" (str silence-threshold))
            ;;(shell/sh "aubiopitch" sample "-p" "yin" "-s" (str silence-threshold))
             ]
         (if (= (:exit o) 0)
