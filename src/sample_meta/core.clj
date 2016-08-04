@@ -121,7 +121,9 @@
 
 (defn find-length [sample] (get (dsp/info sample) :length))
 
-(defn find-sample-set [sample-root]
+(defn all-wavs [root] (filter #(.endsWith (.getName %) ".wav") (file-seq (io/file sample-root))))
+
+(defn sample-data-set [samples]
   (map
    (fn [file]
      (let [p (.getPath file)
@@ -137,14 +139,14 @@
 
            stats (dsp-stats/stats p)
 
-           pitch-stats (dsp/find-pitch p -80.0)
+           pitch-stats (dsp/find-pitch p -50.0) ;;Filter out quiet sounds
            notes (:notes pitch-stats)
 
            note-1 (nth notes 0 nil)
            note-2 (nth notes 1 nil)
            note-3 (nth notes 2 nil)
            note-4 (nth notes 3 nil)]
-       (println notes)
+       ;;(println notes)
        [(sha256 p) p collection filename length main-type sub-type note octave bpm
 
         (get stats "Rough note")
@@ -159,17 +161,16 @@
         (get stats "Volume adjustment")
         (get stats "RMS delta")
         ]))
-   (filter #(.endsWith (.getName %) ".wav") (file-seq (io/file sample-root)))))
+   samples))
 
 (defn abs [x]
   (if (> x 0) x (* -1 x)))
 
 (defn import-samples
-  ([] (import-samples sample-root))
-  ([path]
-     (println (str {:importing-from path}))
-     (let [batch-size 10
-           samples (find-sample-set path)
+  ([] (import-samples (all-wavs sample-root)))
+  ([samples]
+     (let [batch-size 1000
+           samples (find-sample-set samples)
            insert-fn
            (fn [s]
              (j/insert-multi!
@@ -291,6 +292,7 @@
   (j/execute! mysql-db "TRUNCATE cuts;")
   (j/execute! mysql-db "TRUNCATE track;")
 
+
   (find-note "/Users/josephwilk/Workspace/music/samples/Abstract/One Shots/Tonal/C#3_DryTone_SP.wav")
 
   (find-note "/Users/josephwilk/Workspace/music/samples/Abstract/One Shots/Tonal/38_C_StutteringFM8_SP.wav")
@@ -300,9 +302,13 @@
   (find-filename "/Users/josephwilk/Workspace/music/samples/Abstract/One Shots/Tonal/C#_DryTone_SP")
 
   (do
-    (import-samples)
-    (import-notes 0.1 64)
+    (let [existing-samples (set (map :path (j/query mysql-db "SELECT path from samples;")))
+          fs-samples (set (map (fn [f] (.getPath f)) (all-wavs sample-root)))
+          new-samples (clojure.set/difference fs-samples existing-samples)]
+      (println (str "New samples:" (count new-samples))))
+    (import-samples new-samples)
 
+    ;;(import-notes 0.1 64)
     (import-samples-with-scales)
     )
 
