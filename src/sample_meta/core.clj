@@ -126,28 +126,28 @@
 (defn sample-data-set [samples]
   (map
    (fn [file]
-     (let [p (.getPath file)
-           collection (find-collection p)
-           {note :note octave :octave} (find-note p)
-           filename (find-filename p)
-           bpm (find-bpm p)
-           length (find-length p)
+     (let [;;p (.getPath file)
+           collection (find-collection file)
+           {note :note octave :octave} (find-note file)
+           filename (find-filename file)
+           bpm (find-bpm file)
+           length (find-length file)
 
-           types (find-type p)
+           types (find-type file)
            main-type (first types)
            sub-type (or (second types) main-type)
 
-           stats (dsp-stats/stats p)
+           stats (dsp-stats/stats file)
 
-           pitch-stats (dsp/find-pitch p -50.0) ;;Filter out quiet sounds
+           pitch-stats (dsp/find-pitch file -80.0) ;;Filter out quiet sounds
            notes (:notes pitch-stats)
 
            note-1 (nth notes 0 nil)
            note-2 (nth notes 1 nil)
            note-3 (nth notes 2 nil)
            note-4 (nth notes 3 nil)]
-       ;;(println notes)
-       [(sha256 p) p collection filename length main-type sub-type note octave bpm
+       (println notes)
+       [(sha256 file) file collection filename length main-type sub-type note octave bpm
 
         (get stats "Rough note")
 
@@ -170,7 +170,7 @@
   ([] (import-samples (all-wavs sample-root)))
   ([samples]
      (let [batch-size 1000
-           samples (find-sample-set samples)
+           samples (sample-data-set samples)
            insert-fn
            (fn [s]
              (j/insert-multi!
@@ -187,7 +187,6 @@
                "rms_amplitude"
                "volume_adjustment"
                "rms_delta"] s))]
-       ;;(println (str "total samples: " (count samples)))
        (loop [samples samples]
          (flush)
          (let [s (take batch-size samples)]
@@ -310,8 +309,10 @@
     (let [existing-samples (set (map :path (j/query mysql-db "SELECT path from samples;")))
           fs-samples (set (map (fn [f] (.getPath f)) (all-wavs sample-root)))
           new-samples (clojure.set/difference fs-samples existing-samples)]
-      (println (str "New samples:" (count new-samples))))
-    (import-samples new-samples)
+      (println (str "New samples:" (first new-samples)))
+      (import-samples new-samples)
+      )
+
 
     ;;(import-notes 0.1 64)
     (import-samples-with-scales)

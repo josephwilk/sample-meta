@@ -13,10 +13,11 @@
       (clojure.string/replace "Eb" "D#")
       (clojure.string/replace "Bb" "A#")))
 
-(defn find-note [freq]
-  ;;(println freq)
-  (let [note (pitch/hz->midi (Double/parseDouble freq))]
-    (note-without-flat note)))
+(defn find-note [freq-str]
+  (let [freq (Double/parseDouble freq-str)]
+    (when (> freq 0.0)
+      (let [note (pitch/hz->midi freq)]
+        (note-without-flat note)))))
 
 (defn scale-notes [root scale]
   (->>
@@ -35,31 +36,33 @@
                [:C :C# :D :D# :E :F :F# :G :G# :A :A# :B] )))
 
 (defn find-scale [notes]
-  (let [scales-scored
-        (reverse
-         (sort-by
-          :matches
-          (filter
-           (fn [scale] (= (:matches scale) 3));;Match a chord
-           (map
-            (fn [{scale-notes :notes root :root scale :scale}
-                ]
-              (let [matches (clojure.set/intersection (set scale-notes) (set notes))
-                    differences (clojure.set/difference (set notes) (set scale-notes))]
-                ;; (println root scale matches (count (vec matches)))
-                {:root (name root) :scale (name scale) :matches (count (vec matches)) :diffs (count (vec differences))}
-                ))
-            all-scales))))
+  (if (seq notes)
+    (let [scales-scored
+          (reverse
+           (sort-by
+            :matches
+            (filter
+             (fn [scale] (= (:matches scale) 3));;Match a chord
+             (map
+              (fn [{scale-notes :notes root :root scale :scale}
+                  ]
+                (let [matches (clojure.set/intersection (set scale-notes) (set notes))
+                      differences (clojure.set/difference (set notes) (set scale-notes))]
+                  ;; (println root scale matches (count (vec matches)))
+                  {:root (name root) :scale (name scale) :matches (count (vec matches)) :diffs (count (vec differences))}
+                  ))
+              all-scales))))
 
-        top-score (get (first scales-scored) :matches)
-        top-matching-candidates (take-while (fn [s] (= top-score (:matches s))) scales-scored)
+          top-score (get (first scales-scored) :matches)
+          top-matching-candidates (take-while (fn [s] (= top-score (:matches s))) scales-scored)
 
-        lowest-diff (get (first scales-scored) :diffs)
+          lowest-diff (get (first scales-scored) :diffs)
 
-        top-candidates (sort-by :diffs top-matching-candidates)
-        top-candidates (take-while (fn [s] (= lowest-diff (:diffs s))) top-candidates)]
+          top-candidates (sort-by :diffs top-matching-candidates)
+          top-candidates (take-while (fn [s] (= lowest-diff (:diffs s))) top-candidates)]
 
-    top-candidates))
+      top-candidates)
+    {:root nil :scale nil :notes nil}))
 
 (comment
   (first all-scales)
@@ -122,34 +125,36 @@
 (defn find-pitch
   ([sample] (find-pitch sample -90.0))
   ([sample silence-threshold]
-     (let [o (shell/sh "aubiopitch" sample "-p" "yin" "-s" (str silence-threshold))
-           ;;(shell/sh "aubiopitch" sample "-p" "yin" "-s" (str silence-threshold))
-            ]
+     (let [o ;;(shell/sh "aubiopitch" sample "-s" (str silence-threshold))
+           (shell/sh "aubiopitch" sample "-p" "yin" "-s" (str silence-threshold))
+           ]
         (if (= (:exit o) 0)
-          (let [out (->> (clojure.string/split (:out o) #"\n")
-                         (map #(clojure.string/split %1 #"\s"))
-                         (map (fn [[t s]]
-                                (try
-                                  (re-find #"[^\d]+" (find-note s))
-                                  (catch Exception e
-                                    ;;(println e)
-                                    nil
-                                    )
-                                  )))
-                         (reduce (fn [frequencies note]
-                                   (if note
-                                     (assoc frequencies note (inc (get frequencies note 0)))
-                                     frequencies)) {})
-                         (sort-by val)
-                         reverse
-                         (filter (fn [[note score]]
-                                   (> score 5))) ;;remove weaker notes
-                         (map first)
-                         (map name)
-                         vec)]
+          (let [out
+                (->> (clojure.string/split (:out o) #"\n")
+                     (map #(clojure.string/split %1 #"\s"))
+                     (map
+                      (fn [[t s]]
+                        (try
+                          (when-let [note (find-note s)]
+                            (re-find #"[^\d]+" note))
+                          (catch Exception e
+                            (println e)
+                            []))))
+                     (reduce (fn [frequencies note]
+                               (if note
+                                 (assoc frequencies note (inc (get frequencies note 0)))
+                                 frequencies)) {})
+                     (map (fn [x] (println x) x))
+
+                     (sort-by val)
+                     reverse
+                     (filter (fn [[note score]] (> score 5))) ;;remove weaker notes
+                     (map first)
+                     (map name)
+                     vec)]
 
             ;;(println (find-scale (map first out)))
-            {:notes out :scale (find-scale out)
+            {:notes out ;;:scale (find-scale out)
              })
           (do
             (println (:err o))
