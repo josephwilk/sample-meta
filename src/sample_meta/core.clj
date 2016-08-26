@@ -238,12 +238,14 @@
       results))))
 
 (defn import-notes
-  ([] (import-notes 0.3 256))
-  ([onset-threshold hop-size]
-     (let [results (j/query mysql-db "select id,path from samples")]
+  ([]        (import-notes (j/query mysql-db "select id,path from samples") 0.3 256))
+  ([samples] (import-notes samples 0.3 256))
+  ([samples onset-threshold hop-size]
+     (let [results samples]
        (doall
         (pmap
          (fn [result]
+           (println :result result)
            (let [note-data (dsp/notes (:path result) onset-threshold hop-size)
                  notes (:notes note-data)
                  onset (:onset note-data)
@@ -311,6 +313,14 @@
           new-samples (clojure.set/difference fs-samples existing-samples)]
       (println (str "New samples:" (first new-samples)))
       (import-samples new-samples)
+      )
+
+
+    (let [existing-samples (set (map :path (j/query mysql-db "SELECT path from notes_fine;")))
+          fs-samples (set (map (fn [f] (.getPath f)) (all-wavs sample-root)))
+          new-samples (clojure.set/difference fs-samples existing-samples)]
+      (println (str "New samples:" (count new-samples)))
+      (import-notes (map (fn [s] {:path s}) new-samples) 0.1 64)
       )
 
 
