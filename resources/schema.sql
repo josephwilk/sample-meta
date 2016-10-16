@@ -23,8 +23,7 @@ DROP TABLE IF EXISTS `notes_fine`;
 /*!40101 SET @saved_cs_client     = @@character_set_client */;
 /*!40101 SET character_set_client = utf8 */;
 CREATE TABLE `notes_fine` (
-  `id` int(11) unsigned NOT NULL AUTO_INCREMENT,
-  `sample_id` int(32) DEFAULT NULL,
+  `sample_id` int(11) DEFAULT NULL,
   `path` varchar(255) DEFAULT NULL,
   `collection` varchar(255) DEFAULT NULL,
   `filename` varchar(255) DEFAULT NULL,
@@ -34,8 +33,7 @@ CREATE TABLE `notes_fine` (
   `midi` int(11) DEFAULT NULL,
   `note` varchar(6) DEFAULT NULL,
   `octave` int(11) DEFAULT NULL,
-  `perc` tinyint(1) DEFAULT NULL,
-  PRIMARY KEY (`id`)
+  `perc` tinyint(1) DEFAULT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8;
 /*!40101 SET character_set_client = @saved_cs_client */;
 
@@ -70,7 +68,7 @@ CREATE TABLE `samples` (
   `volume_adjustment` float DEFAULT NULL,
   `rms_delta` float DEFAULT NULL,
   PRIMARY KEY (`id`)
-) ENGINE=InnoDB AUTO_INCREMENT=55021 DEFAULT CHARSET=utf8;
+) ENGINE=InnoDB AUTO_INCREMENT=58360 DEFAULT CHARSET=utf8;
 /*!40101 SET character_set_client = @saved_cs_client */;
 /*!40103 SET TIME_ZONE=@OLD_TIME_ZONE */;
 
@@ -82,4 +80,4 @@ CREATE TABLE `samples` (
 /*!40101 SET COLLATION_CONNECTION=@OLD_COLLATION_CONNECTION */;
 /*!40111 SET SQL_NOTES=@OLD_SQL_NOTES */;
 
--- Dump completed on 2016-10-15 18:40:59
+-- Dump completed on 2016-10-16 14:28:20
