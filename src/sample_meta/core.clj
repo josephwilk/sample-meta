@@ -169,7 +169,7 @@
 (defn import-samples
   ([] (import-samples (all-wavs sample-root)))
   ([samples]
-     (let [batch-size 1000
+     (let [batch-size 10
            samples (sample-data-set samples)
            insert-fn
            (fn [s]
@@ -253,7 +253,7 @@
                  filename (find-filename (:path result))
                  table (if (or (< onset-threshold 0.3)
                                (< hop-size 256))
-                         :notes_fine
+                         (keyword (str "notes_fine" hop-size))
                          :notes)]
              (doseq [note notes]
                (let [length (abs (- (:offset note) (:onset note)))
@@ -316,7 +316,8 @@
       )
 
 
-    (let [all-smps (j/query mysql-db "SELECT path from notes_fine;")
+    (let [hop 128
+          all-smps (j/query mysql-db (str "SELECT path from " "notes_fine" hop ";"))
           existing-samples (set (map :path all-smps))
           fs-samples (set (map (fn [f] (.getPath f)) (all-wavs sample-root)))
           new-samples (clojure.set/difference fs-samples existing-samples)
@@ -326,10 +327,11 @@
                                          )
                                        new-samples))]
       (println (str "New samples:" (first import-new-samples)))
-      (import-notes import-new-samples 0.1 64)
+      (import-notes import-new-samples 0.1 hop)
+      ;;(import-notes)
       )
 
-
+    12 12
     ;;(import-notes 0.1 64)
     (import-samples-with-scales)
     )
