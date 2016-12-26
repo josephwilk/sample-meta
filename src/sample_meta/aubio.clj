@@ -165,7 +165,7 @@
   ([sample res] (notes sample res 256))
   ([sample resolution hop-size]
      (let [o (shell/sh "aubionotes"
-                       (str "-t " resolution)
+                       ;;(str "-t " resolution)
                        (str "-H" hop-size)
                        sample)]
         (if (= (:exit o) 0)
