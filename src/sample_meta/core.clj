@@ -245,13 +245,9 @@
        (doall
         (pmap
          (fn [result]
-           (print ".")
-           (let [note-data (try
-                             (dsp/notes (:path result) onset-threshold hop-size)
-                             (catch Exception e
-                               (println e)
-                               {})
-                             )
+;;           (print ".")
+           (let [note-data (dsp/notes (:path result) onset-threshold hop-size)
+
                  notes (:notes note-data)
                  onset (:onset note-data)
                  collection (find-collection (:path result))
@@ -261,7 +257,11 @@
                          (keyword (str "notes_fine" hop-size))
                          :notes)]
              (doseq [note notes]
-               (let [length (abs (- (:offset note) (:onset note)))
+
+
+               (let [length (if (:offset note)
+                              (abs (- (:offset note) (:onset note)))
+                              0)
                      perc (if (< length 0.05) 1 0)]
                  (j/insert! mysql-db table [:sample_id :path :collection :filename :onset :offset :length :midi :note :octave :perc] [(:id result) (:path result) collection filename (:onset  note) (:offset note) length (:midi note) (:note note)  (:octave note) perc])))))
          results)))))
@@ -331,7 +331,7 @@
                                            (j/query mysql-db (str "SELECT path,id from samples where path=\""p "\";"))
                                            )
                                          new-samples))]
-        (println (str "New samples:" (first import-new-samples)))
+        (println (str "First new sample:" (first import-new-samples)))
         (import-notes import-new-samples 0.1 hop)
         ;;(import-notes)
         ))
