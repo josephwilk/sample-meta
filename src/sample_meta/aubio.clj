@@ -160,6 +160,18 @@
             (println (:err o))
             {:notes [] :scale {}})))))
 
+(defn- extract-note-onset [[midi on off]]
+  (let [note-name (name (pitch/find-note-name (Math/round midi)))
+        octave (Integer/parseInt (str (last note-name)))
+        note-name (-> note-name
+                      butlast
+                      clojure.string/join
+                      clojure.string/upper-case
+                      (clojure.string/replace #"AB" "G#")
+                      (clojure.string/replace #"EB" "D#")
+                      (clojure.string/replace #"BB" "A#"))]
+    {:midi midi :onset on :offset off :note note-name :octave octave}))
+
 (defn notes
   ([sample] (notes sample 0.3))
   ([sample res] (notes sample res 256))
@@ -167,34 +179,27 @@
      (let [o (shell/sh "aubionotes"
                        ;;(str "-t " resolution)
                        (str "-H" hop-size)
-                       sample)]
-        (if (= (:exit o) 0)
-          (let [[head & [tail]] (clojure.string/split (:out o) #"\n")
-                head (Double/parseDouble head)
-                data (if (seq tail)
-                       (let [tails (->> (clojure.string/split tail #"\t")
-                                        (map (fn [string] (Double/parseDouble string))))
-                             data (partition 3 tails)
-                             data (map (fn [[midi on off]]
-                                         (let [note-name (name (pitch/find-note-name (Math/round midi)))
-                                               octave (Integer/parseInt (str (last note-name)))
-                                               note-name (-> note-name
-                                                             butlast
-                                                             clojure.string/join
-                                                             clojure.string/upper-case
-                                                             (clojure.string/replace #"AB" "G#")
-                                                             (clojure.string/replace #"EB" "D#")
-                                                             (clojure.string/replace #"BB" "A#")
-                                                             )]
-                                           {:midi midi :onset on :offset off :note note-name :octave octave}))
-                                       data)]
-                         data)
-                       [{:midi 0.0 :onset head :offset 0.0}])]
-            {:onset head
-             :notes data
-             :threshold resolution})
-          (do
-            (println (:err o))
+                       sample)
+           [first-onset & note-onsets] (clojure.string/split (:out o) #"\n")]
+       (if (and
+            (not (clojure.string/blank? first-onset))
+            (= (:exit o) 0))
+         (let [first-onset (Double/parseDouble first-onset)
+               data (if (seq note-onsets)
+                      (let [onsets (->>
+                                    note-onsets
+                                    (map (fn [line] (clojure.string/split line #"\t")))
+                                    (flatten)
+                                    (map (fn [string] (Double/parseDouble string)))
+                                    (partition 3)
+                                    (map extract-note-onset))]
+                        onsets)
+                      [{:midi 0.0 :onset first-onset :offset 0.0}])]
+           {:onset first-onset
+            :notes data
+            :threshold resolution})
+         (do
+           ;;            (println (:err o))
             {:onset 0.0 :notes {:midi 0.0 :onset 0.0 :offset 0.0}
              :threshold resolution})))))
 
@@ -210,7 +215,10 @@
 
   (info "/Users/josephwilk/Workspace/music/samples/33ReverseFX_Wav_SP/Samples/ReverseTexture_02_SP.wav")
 
+  (notes "/Users/josephwilk/Workspace/music/samples/Dirty/P021-P030/35_P26_RR01_SP.wav")
+
   (notes "/Users/josephwilk/Workspace/music/samples/33ReverseFX_Wav_SP/Samples/ReverseTexture_02_SP.wav")
+
   (cuts "/Users/josephwilk/Workspace/music/samples/33ReverseFX_Wav_SP/Samples/ReverseTexture_02_SP.wav")
   (track "/Users/josephwilk/Workspace/music/samples/33ReverseFX_Wav_SP/Samples/ReverseTexture_02_SP.wav")
   )
