@@ -162,11 +162,15 @@
 
 (defn- extract-note-onset [[midi on off]]
   (let [note-name (name (pitch/find-note-name (Math/round midi)))
-        octave (Integer/parseInt (str (last note-name)))
+        octave (if (clojure.string/includes? note-name "-")
+                 (Integer/parseInt (str "-" (last note-name)))
+                 (Integer/parseInt (str (last note-name))))
+
         note-name (-> note-name
                       butlast
                       clojure.string/join
                       clojure.string/upper-case
+                      (clojure.string/replace #"-" "")
                       (clojure.string/replace #"AB" "G#")
                       (clojure.string/replace #"EB" "D#")
                       (clojure.string/replace #"BB" "A#"))]
@@ -218,6 +222,11 @@
   (notes "/Users/josephwilk/Workspace/music/samples/Dirty/P021-P030/35_P26_RR01_SP.wav")
 
   (notes "/Users/josephwilk/Workspace/music/samples/33ReverseFX_Wav_SP/Samples/ReverseTexture_02_SP.wav")
+
+  (notes "/Users/josephwilk/Workspace/music/samples/strawberry/Samples/Mic2/Phrases/120 BPM/A#/1/vog_strw_PAs120_1_16_b.wav")
+
+
+  (notes "/Users/josephwilk/Workspace/music/samples/RandomPhonics/Loops/120_Am_Trans_Full01_SP.wav")
 
   (cuts "/Users/josephwilk/Workspace/music/samples/33ReverseFX_Wav_SP/Samples/ReverseTexture_02_SP.wav")
   (track "/Users/josephwilk/Workspace/music/samples/33ReverseFX_Wav_SP/Samples/ReverseTexture_02_SP.wav")
