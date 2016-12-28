@@ -204,8 +204,9 @@
             :threshold resolution})
          (do
            ;;            (println (:err o))
-            {:onset 0.0 :notes {:midi 0.0 :onset 0.0 :offset 0.0}
-             :threshold resolution})))))
+           {:onset 0.0
+            :notes [{:midi 0.0 :onset 0.0 :offset 0.0}]
+            :threshold resolution})))))
 
 (comment
   (notes "/Users/josephwilk/Workspace/music/samples/Abstract/Loops/Melodic/Found Sound/120_C_Lamp_01_SP.wav" 0.3 64)
@@ -224,6 +225,10 @@
   (notes "/Users/josephwilk/Workspace/music/samples/33ReverseFX_Wav_SP/Samples/ReverseTexture_02_SP.wav")
 
   (notes "/Users/josephwilk/Workspace/music/samples/strawberry/Samples/Mic2/Phrases/120 BPM/A#/1/vog_strw_PAs120_1_16_b.wav")
+
+  (notes "/Users/josephwilk/Workspace/music/samples/strawberry/Samples/Mic2/Phrases/100 BPM/D/1/vog_strw_PD100_1_40_b.wav")
+
+
 
 
   (notes "/Users/josephwilk/Workspace/music/samples/RandomPhonics/Loops/120_Am_Trans_Full01_SP.wav")

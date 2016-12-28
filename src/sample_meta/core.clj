@@ -245,7 +245,7 @@
        (doall
         (pmap
          (fn [result]
-;;           (print ".")
+           (print ".")
            (let [note-data (dsp/notes (:path result) onset-threshold hop-size)
 
                  notes (:notes note-data)
